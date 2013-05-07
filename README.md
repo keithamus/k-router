@@ -3,11 +3,11 @@ K-Router
 
 K-Router is a simple Class based router Connect middleware. In other words, it
 ehances the default Connect router (`app.use('/url', fn)`) to do more advanced
-routing to methods on instance object by `router.route('/url', controller,
-'action', 'GET')`. The URLs work mostly like Expresses routing engine, it
-supports named and optional parameters, regex urls and can be bound to one HTTP
-verb at a time. It goes further than Expresses router in the following ways
-though:
+routing to methods on instance object by
+`router.route('/url', controller, 'action', 'GET')`. The URLs work mostly like
+Expresses routing engine, it supports named and optional parameters, regex urls
+and can be bound to one HTTP verb at a time. It goes further than Expresses
+router in the following ways though:
 
  - You always pass an instance object, followed by a function name - which
    allows for late binding to the functions. By converse, Express has no kind of
