@@ -1,0 +1,5 @@
+*.sublime-*
+index.html
+test.html
+public/
+main.css
