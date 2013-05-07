@@ -118,11 +118,12 @@ Notes:
 ```javascript
 // Require a "Controller" (MVC) or "View" (MVT) that is a proper class we will
 // use for routing:
-var ViewClass = require('./users.view.js'),
+var UsersViewClass = require('./users.view.js'),
+    PublicThingsViewClass = require('./public.view.js')
     router    = require('k-router');
 
-router.route('/users/:id', ViewClass, 'showUser', 'GET')
-      .route('/users/:id', ViewClass, 'editUser', 'PUT');
+router.resources('/users', UsersViewClass)
+      .resource('/public', PublicThingsViewClass);
 ```
 
 LICENSE
