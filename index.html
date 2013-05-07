@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>K-Router</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" media="all" href="public/stylesheets/normalize.css" />
+  <link rel="stylesheet" media="all" href="main.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="page">
+
+      <div class="header">
+        
+          
+          <h1>K-Router</h1>
+
+          
+        
+
+        
+      </div>
+
+      
+        
+        <blockquote>
+<p>© Keith Cirkel</p>
+<p>K-Router may be freely distributed under the MIT license.</p>
+<p>For all details and documentation:
+<a href="http://github.com/keithamus/k-router">http://github.com/keithamus/k-router</a></p>
+</blockquote>
+<p>K-Router is a simple Class based router Connect middleware. In other words, it ehances the
+default Connect router (<code>app.use(&#39;/url&#39;, fn)</code>) to do more advanced routing to methods on instance
+object by <code>router.route(&#39;/url&#39;, controller, &#39;action&#39;, &#39;GET&#39;)</code>. The URLs work mostly like
+Expresses routing engine, it supports named and optional parameters, regex urls and can be bound
+to one HTTP verb at a time. It goes further than Expresses router in the following ways though:</p>
+<ul>
+<li>You always pass an instance object, followed by a function name - which allows for late
+binding to the functions. By converse, Express has no kind of class binding, meaning you need
+to manually do this.</li>
+<li>By specifying a URL route attached to a HTTP verb (e.g GET) all other verbs (e.g PUT POST
+DELETE) return 405 errors. This is how your website <strong>should</strong> behave. Also, all 405s will
+send a proper <code>Allow</code> header, saying what verbs are available. By converse, Express does
+nothing with other verbs, and so they 404.</li>
+<li>It captures the 90% usecase by specifying <code>.router.resources(&#39;/url&#39;, controller)</code> and
+<code>.router.resource(&#39;/url&#39;, controller)</code> which automatically binds REST pattern routes, very
+similar to Rail&#39;s <code>Routing::Mapper::Resources</code>. By converse, Express does not offer this and
+so you have to do these manually.</li>
+</ul>
+<p>Below is the heavily commented codebase for K-Router, which you can use for documentation.
+Failing that, you can also have a look at the <a href="test.html">test generated documentation</a></p>
+<p>K-Router is a singleton, and has a global config. The config comes with a complete set of
+sensible defaults, so no configuration needs to be used.</p>
+
+        
+          <div class='highlight'><pre><span class="keyword">var</span> parseUrl = require(<span class="string">'url'</span>).parse;
+<span class="keyword">var</span> config = {
+    resourceActions: {
+        list: <span class="string">'list'</span>,
+        <span class="keyword">new</span>: <span class="string">'new'</span>,
+        create: <span class="string">'create'</span>,
+        show: <span class="string">'show'</span>,
+        edit: <span class="string">'edit'</span>,
+        update: <span class="string">'update'</span>,
+        destroy: <span class="string">'destroy'</span>,
+    },
+    methods: {
+        GET: <span class="literal">true</span>,
+        HEAD: <span class="literal">true</span>,
+        POST: <span class="literal">true</span>,
+        PUT: <span class="literal">true</span>,
+        DELETE: <span class="literal">true</span>,
+        TRACE: <span class="literal">true</span>,
+        OPTIONS: <span class="literal">true</span>,
+        CONNECT: <span class="literal">true</span>,
+        PATCH: <span class="literal">true</span>
+    },</pre></div>
+        
+      
+        
+        <p>errorHandlers</p>
+
+        
+          <div class='highlight'><pre>    errorHandler: <span class="function"><span class="keyword">function</span> <span class="params">(req, res, next)</span> {</span>
+        <span class="keyword">var</span> verb = req.method,
+            err = <span class="keyword">new</span> Error(<span class="string">'Method '</span> + verb + <span class="string">' not defined on route'</span>);
+        err.allow = [];
+        <span class="keyword">for</span> (<span class="keyword">var</span> httpVerb <span class="keyword">in</span> config.methods) {
+            <span class="keyword">if</span> (route.routes[httpVerb][req.route.regexp.source].controller !== config) {
+                (err.allow || (err.allow = [])).push(httpVerb);
+            }
+        }
+        res.setHeader(<span class="string">'Allow'</span>, err.allow.join(<span class="string">', '</span>));
+        res.statusCode = err.status = <span class="number">405</span>;
+        <span class="keyword">return</span> next(err);
+    }
+};</pre></div>
+        
+      
+        
+        <h2>Helpers</h2>
+
+        
+      
+        
+        <p>pathRegExp is a way to convert string paths (first argument of route/resource) into RegExps. It
+is totally stolen from Express to remain compatible with Expresses matchers.</p>
+
+        
+          <div class='highlight'><pre><span class="function"><span class="keyword">function</span> <span class="title">pathRegExp</span><span class="params">(path, keys)</span> {</span>
+    <span class="keyword">if</span> (path <span class="keyword">instanceof</span> RegExp) <span class="keyword">return</span> path;</pre></div>
+        
+      
+        
+        <p>Multiple string paths can be expressed as arrays</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">if</span> (Array.isArray(path)) path = <span class="string">'('</span> + path.join(<span class="string">'|'</span>) + <span class="string">')'</span>;
+    path = path</pre></div>
+        
+      
+        
+        <p>If &quot;strict&quot; is false (default) then allow for trailing /</p>
+
+        
+          <div class='highlight'><pre>        .concat(config.strict ? <span class="string">''</span> : <span class="string">'/?'</span>)</pre></div>
+        
+      
+        
+        <p>So that match groups aren&#39;t messed up, turn any <code>/(</code> into <code>(?:/</code></p>
+
+        
+          <div class='highlight'><pre>        .replace(<span class="regexp">/\/\(/g</span>, <span class="string">'(?:/'</span>)</pre></div>
+        
+      
+        
+        <p>This is the core of named groups, fragments like <code>/:name</code> get converted to <code>/([^/]+?)</code>
+and the key of &quot;name&quot; is recorded into <code>keys</code> so it can be loaded. It also has special
+cases for extensions in urls (i.e &quot;/whatever.:format&quot;) and wildcards like &quot;/whatever/*&quot;</p>
+
+        
+          <div class='highlight'><pre>        .replace(<span class="regexp">/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?(\*)?/g</span>, <span class="function"><span class="keyword">function</span> <span class="params">(_, slash, format, key, capture, optional, star)</span> {</span>
+            keys.push({ name: key, optional: !! optional });
+            slash = slash || <span class="string">''</span>;
+            <span class="keyword">return</span> <span class="string">''</span> +
+                (optional ? <span class="string">''</span> : slash) +
+                <span class="string">'(?:'</span> +
+                (optional ? slash : <span class="string">''</span>) +
+                (format || <span class="string">''</span>) + (capture || (format &amp;&amp; <span class="string">'([^/.]+?)'</span> || <span class="string">'([^/]+?)'</span>)) + <span class="string">')'</span> +
+                (optional || <span class="string">''</span>) +
+                (star ? <span class="string">'(/*)?'</span> : <span class="string">''</span>);
+        })</pre></div>
+        
+      
+        
+        <p>Escape all /s and .s as RegExp literal /s and .s</p>
+
+        
+          <div class='highlight'><pre>        .replace(<span class="regexp">/([\/.])/g</span>, <span class="string">'\\$1'</span>)</pre></div>
+        
+      
+        
+        <p>Convert any wildcards to RegExp wildcards</p>
+
+        
+          <div class='highlight'><pre>        .replace(<span class="regexp">/\*/g</span>, <span class="string">'(.*)'</span>);</pre></div>
+        
+      
+        
+        <p>If &quot;sensitive&quot; is false then make the RegExp case insensitive (//i)</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">return</span> <span class="keyword">new</span> RegExp(<span class="string">'^'</span> + path + <span class="string">'$'</span>, config.sensitive ? <span class="string">''</span> : <span class="string">'i'</span>);
+}</pre></div>
+        
+      
+        
+        <h2>Routing</h2>
+
+        
+      
+        
+        <h3>Route</h3>
+
+        
+      
+        
+        <p>Route allows you to bind a <code>path</code> to an <code>controller.action</code> against an HTTP <code>verb</code>, for example
+<code>route(&#39;/user/:name&#39;, userController, &#39;show&#39;, &#39;GET&#39;);</code></p>
+
+        
+          <div class='highlight'><pre><span class="function"><span class="keyword">function</span> <span class="title">route</span><span class="params">(path, controller, action, verb)</span> {</span></pre></div>
+        
+      
+        
+        <p>Clean up the verb name. Throw if it doesn&#39;t exist</p>
+
+        
+          <div class='highlight'><pre>    verb = verb ? verb.toUpperCase() : <span class="string">'GET'</span>;
+    <span class="keyword">if</span> (!config.methods[verb]) <span class="keyword">throw</span> <span class="keyword">new</span> Error(<span class="string">'Invalid HTTP method: '</span> + verb);</pre></div>
+        
+      
+        
+        <p>Build up the RegExp pathname (see above)</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">var</span> keys = [];
+    <span class="keyword">var</span> regexp = pathRegExp(path, keys);</pre></div>
+        
+      
+        
+        <p>Bind all routes to each of the HTTP verbs, attaching 405s to the other verbs not specified in
+the, params if they don&#39;t exist.</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">for</span> (<span class="keyword">var</span> httpverb <span class="keyword">in</span> config.methods) {</pre></div>
+        
+      
+        
+        <p>If a method is already attached (and its not the one we&#39;re explicitly trying to set),
+then don&#39;t add one, otherwise just go ahead and add one in.</p>
+
+        
+          <div class='highlight'><pre>        <span class="keyword">if</span> (httpverb !== verb &amp;&amp; (route.routes[httpverb] || {})[regexp.source]) <span class="keyword">continue</span>;
+        <span class="keyword">var</span> routeObj = (route.routes[httpverb] || (route.routes[httpverb] = {}))[regexp.source] = {
+            path: path,
+            regexp: regexp,
+            keys: keys
+        };</pre></div>
+        
+      
+        
+        <p>Attach the controller &amp; action to the HTTP verb supplied, but attach a 405 handler for
+any other verb.</p>
+
+        
+          <div class='highlight'><pre>        routeObj.controller = httpverb === verb ? controller : config;
+        routeObj.action = httpverb === verb ? action : <span class="string">'errorHandler'</span>;
+    }</pre></div>
+        
+      
+        
+        <p>Return the function so multiple routes can be chained like:
+`route(/<em>...</em>/)(/<em>...</em>/)(/<em>...</em>/)(/<em>...</em>/)</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">return</span> route;
+}</pre></div>
+        
+      
+        
+        <p>This allows users to use the syntax &quot;route(/<em>...</em>/).route(/<em>...</em>/).route(/<em>...</em>/).route(/<em>...</em>/)&quot;
+for people not adventurous to use the paren only syntax ( (/<em>...</em>/)(/<em>...</em>/) )</p>
+
+        
+          <div class='highlight'><pre>route.route = route;</pre></div>
+        
+      
+        
+        <h3>Resources</h3>
+
+        
+      
+        
+        <p>Resources are a shortcut to declaring many routes. They follow the
+<a href="http://en.wikipedia.org/wiki/Crud">CRUD</a> pattern, and are similar to how Rail&#39;s resources work.
+Resources come in two flavours, <code>.resource()</code> and <code>.resources()</code>. The plural <code>.resources()</code> binds
+the list, create, new, show, update, destroy, edit actions, while the singular <code>.resource()</code>
+binds the show, create, update, destroy, new, edit actions. If one of those actions doesn&#39;t exist
+on the controller, then the route isn&#39;t bound. See the handy table below for how these get mapped
+to different urls:</p>
+<h4>Resources (Plural, <code>.resources()</code>)</h4>
+
+        
+      
+        
+        <table>
+<thead>
+<tr>
+<th align="center">Verb</th>
+<th align="left">Url</th>
+<th align="center">Controller Action</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url</td>
+<td align="center">Controller#list</td>
+<td align="left">Display a list of all items in a resource</td>
+</tr>
+<tr>
+<td align="center">POST</td>
+<td align="left">/url</td>
+<td align="center">Controller#create</td>
+<td align="left">Create a new item</td>
+</tr>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url/new</td>
+<td align="center">Controller#new</td>
+<td align="left">HTML form for creating new items</td>
+</tr>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url/:id</td>
+<td align="center">Controller#show</td>
+<td align="left">Display a specific item</td>
+</tr>
+<tr>
+<td align="center">PUT</td>
+<td align="left">/url/:id</td>
+<td align="center">Controller#update</td>
+<td align="left">Update a specific item</td>
+</tr>
+<tr>
+<td align="center">PATCH</td>
+<td align="left">/url/:id</td>
+<td align="center">Controller#update</td>
+<td align="left">Update a specific item</td>
+</tr>
+<tr>
+<td align="center">DELETE</td>
+<td align="left">/url/:id</td>
+<td align="center">Controller#destroy</td>
+<td align="left">Delete a specific item</td>
+</tr>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url/:id/edit</td>
+<td align="center">Controller#edit</td>
+<td align="left">HTML form for editing an item</td>
+</tr>
+</tbody>
+</table>
+
+        
+          <div class='highlight'><pre>route.resources = <span class="function"><span class="keyword">function</span> <span class="title">resource</span><span class="params">(url, controller, id)</span> {</span>
+    id = id || <span class="string">':id'</span>;
+    <span class="keyword">var</span> urlid = url + <span class="string">'/'</span> + id, actions = config.resourceActions;
+    <span class="keyword">if</span> (controller[actions.list])    route(url, controller, actions.list, <span class="string">'GET'</span>);
+    <span class="keyword">if</span> (controller[actions.create])  route(url, controller, actions.create, <span class="string">'POST'</span>);
+    <span class="keyword">if</span> (controller[actions.<span class="keyword">new</span>])     route(url + <span class="string">'/new'</span>, controller, actions.<span class="keyword">new</span>, <span class="string">'GET'</span>);
+    <span class="keyword">if</span> (controller[actions.show])    route(urlid, controller, actions.show, <span class="string">'GET'</span>);
+    <span class="keyword">if</span> (controller[actions.update])  route(urlid, controller, actions.update, <span class="string">'PUT'</span>);
+    <span class="keyword">if</span> (controller[actions.update])  route(urlid, controller, actions.update, <span class="string">'PATCH'</span>);
+    <span class="keyword">if</span> (controller[actions.destroy]) route(urlid, controller, actions.destroy, <span class="string">'DELETE'</span>);
+    <span class="keyword">if</span> (controller[actions.edit])    route(urlid + <span class="string">'/edit'</span>, controller, actions.edit, <span class="string">'GET'</span>);
+    <span class="keyword">return</span> route;
+};</pre></div>
+        
+      
+        
+        <h4>Resource (Singular, <code>.resource()</code>)</h4>
+
+        
+      
+        
+        <table>
+<thead>
+<tr>
+<th align="center">Verb</th>
+<th align="left">Url</th>
+<th align="center">Controller Action</th>
+<th align="left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url</td>
+<td align="center">Controller#show</td>
+<td align="left">Display the singular resource</td>
+</tr>
+<tr>
+<td align="center">POST</td>
+<td align="left">/url</td>
+<td align="center">Controller#create</td>
+<td align="left">Create a new resource like this</td>
+</tr>
+<tr>
+<td align="center">PUT</td>
+<td align="left">/url</td>
+<td align="center">Controller#update</td>
+<td align="left">Update a specific item</td>
+</tr>
+<tr>
+<td align="center">PATCH</td>
+<td align="left">/url</td>
+<td align="center">Controller#update</td>
+<td align="left">Update a specific item</td>
+</tr>
+<tr>
+<td align="center">DELETE</td>
+<td align="left">/url</td>
+<td align="center">Controller#destroy</td>
+<td align="left">Delete a specific item</td>
+</tr>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url/new</td>
+<td align="center">Controller#new</td>
+<td align="left">HTML form for creating new items</td>
+</tr>
+<tr>
+<td align="center">GET</td>
+<td align="left">/url/edit</td>
+<td align="center">Controller#edit</td>
+<td align="left">HTML form for editing an item</td>
+</tr>
+</tbody>
+</table>
+
+        
+          <div class='highlight'><pre>route.resource = <span class="function"><span class="keyword">function</span> <span class="title">resource</span><span class="params">(url, controller, id)</span> {</span>
+    id = id || <span class="string">':id'</span>;
+    <span class="keyword">var</span> actions = config.resourceActions;
+    <span class="keyword">if</span> (controller[actions.show])    route(url, controller, actions.show, <span class="string">'GET'</span>);
+    <span class="keyword">if</span> (controller[actions.create])  route(url, controller, actions.create, <span class="string">'POST'</span>);
+    <span class="keyword">if</span> (controller[actions.update])  route(url, controller, actions.update, <span class="string">'PUT'</span>);
+    <span class="keyword">if</span> (controller[actions.update])  route(url, controller, actions.update, <span class="string">'PATCH'</span>);
+    <span class="keyword">if</span> (controller[actions.destroy]) route(url, controller, actions.destroy, <span class="string">'DELETE'</span>);
+    <span class="keyword">if</span> (controller[actions.<span class="keyword">new</span>])     route(url + <span class="string">'/new'</span>, controller, actions.<span class="keyword">new</span>, <span class="string">'GET'</span>);
+    <span class="keyword">if</span> (controller[actions.edit])    route(url + <span class="string">'/edit'</span>, controller, actions.edit, <span class="string">'GET'</span>);
+    <span class="keyword">return</span> route;
+};</pre></div>
+        
+      
+        
+        <p>Notes:</p>
+<ul>
+<li>The New and Edit urls are used for presenting the user an HTML form, while the others are used
+as HTML and API (e.g JSON or XML) responses.</li>
+<li>The difference between PUT and PATCH (according to the RFC) is that PUT should take an entire
+resource&#39;s data (i.e the whole record) while PATCH can update some or all parameters (i.e some
+of the record). In reality this makes little difference, so both are routed to the same action.</li>
+<li>If you don&#39;t like any of the action names, you can remap them using the configuration option
+<code>resourceActions</code>. E.g:<pre><code class="lang-javascript">app.use(router({ resouceActions: {
+  show: &#39;index&#39;, create: &#39;makenew&#39;, &#39;update&#39;: &#39;put&#39;
+}}))</code></pre>
+</li>
+</ul>
+<h2>MiddleWare</h2>
+
+        
+      
+        
+        <p>The dispatcher is the main component exposed in the middleware for Connect. It sits (ideally at
+the top) in middleware stack and waits for incomming requests, where it tries to match them up
+to a route. Failing that it hands of to the <code>next()</code> middleware.</p>
+
+        
+          <div class='highlight'><pre><span class="function"><span class="keyword">function</span> <span class="title">dispatcher</span><span class="params">(req, res, next)</span> {</span>
+    <span class="keyword">var</span> verb = req.method,</pre></div>
+        
+      
+        
+        <p>Usi</p>
+
+        
+          <div class='highlight'><pre>        url = parseUrl(req.url).pathname;</pre></div>
+        
+      
+        
+        <p>Because all of the routes are bound to the HTTP verb first, the array of acceptable routes
+can be shrunk down significantly by using the HTTP verb.</p>
+
+        
+          <div class='highlight'><pre>    <span class="keyword">for</span> (<span class="keyword">var</span> name <span class="keyword">in</span> route.routes[verb]) {
+        <span class="keyword">var</span> arg = route.routes[verb][name].regexp.exec(url);</pre></div>
+        
+      
+        
+        <p>Arg is either <code>null</code> (no match) or an <code>array</code> of atleast 1 (match)</p>
+
+        
+          <div class='highlight'><pre>        <span class="keyword">if</span> (arg) {</pre></div>
+        
+      
+        
+        <p>The params get injected into the <code>route</code> object, which gets injected into the <code>req</code>
+object, just like Express (so <code>req.route.params</code> works as well as <code>req.params</code>)</p>
+
+        
+          <div class='highlight'><pre>            req.route = route.routes[verb][name];
+            req.params = req.route.params = [];</pre></div>
+        
+      
+        
+        <p>Build up the params list out from the RegExp and the keys of named parameters.</p>
+
+        
+          <div class='highlight'><pre>            <span class="keyword">for</span> (<span class="keyword">var</span> key, value, i = <span class="number">1</span>, l = arg.length; i &lt; l; ++i) {</pre></div>
+        
+      
+        
+        <p>The match of arg[i] will either be a string or <code>undefined</code>. If it is a string,
+decode it so rather than &quot;foo%20bar&quot; its &quot;foo bar&quot;.</p>
+
+        
+          <div class='highlight'><pre>                value = arg[i] === <span class="literal">undefined</span> ? arg[i] : decodeURIComponent(arg[i]);</pre></div>
+        
+      
+        
+        <p>If it is a named parameter, add it to the array with its name, so it can be
+used as <code>req.params.name</code>. If not, then push so it is <code>req.params[0]</code></p>
+
+        
+          <div class='highlight'><pre>                <span class="keyword">if</span> (key = req.route.keys[i - <span class="number">1</span>]) {
+                    req.params[key.name] = value;
+                } <span class="keyword">else</span> {
+                    req.params.push(value);
+                }
+            }</pre></div>
+        
+      
+        
+        <p>Dispatch the route, passing on all params.</p>
+
+        
+          <div class='highlight'><pre>            <span class="keyword">return</span> req.route.controller[req.route.action](req, res, next);
+        }
+    }
+
+    next();
+}</pre></div>
+        
+      
+        
+        <p>setupRoute organises the initial configuration and returns the dispatcher, exposing the
+dispatcher to the app using the typical paradigm <code>app.use(setupRoute({ /*config*/ }));</code>
+If the user attempts to reconfigure the router by running setupRoute again, it will flush any
+existing routes.</p>
+
+        
+          <div class='highlight'><pre>module.exports = <span class="function"><span class="keyword">function</span> <span class="title">setupRoute</span><span class="params">(options)</span> {</span>
+    options = options || {};
+    config.sensitive = Boolean(options.urlsCaseSensitive);
+    config.strict = Boolean(options.urlsAllowTrailingSlashes);
+    config.errorHandler = options.urlMethodNotAllowedErrorHandler || config.errorHandler;
+    <span class="keyword">for</span> (<span class="keyword">var</span> key <span class="keyword">in</span> options.urlResourceActions || {}) {
+        config.resourceActions[key] = options.urlResourceActions[key] || config.resourceActions[key];
+    }
+    route.routes = [];
+    <span class="keyword">return</span> dispatcher;
+};</pre></div>
+        
+      
+        
+        <p>Expose the routing functions to the user.</p>
+
+        
+          <div class='highlight'><pre>module.exports.route = route;
+module.exports.resource = route.resource;
+module.exports.resources = route.resources;</pre></div>
+        
+      
+      <div class="fleur">h</div>
+    </div>
+  </div>
+</body>
+</html>
