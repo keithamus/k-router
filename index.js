@@ -120,7 +120,7 @@ function route(path, controller, action, verb) {
     var regexp = pathRegExp(path, keys);
 
     // Bind all routes to each of the HTTP verbs, attaching 405s to the other verbs not specified in
-    // the, params if they don't exist.
+    // the params if they don't exist.
     for (var httpverb in config.methods) {
         // If a method is already attached (and its not the one we're explicitly trying to set),
         // then don't add one, otherwise just go ahead and add one in.
@@ -228,7 +228,6 @@ route.resource = function resource(url, controller, id) {
 // to a route. Failing that it hands of to the `next()` middleware.
 function dispatcher(req, res, next) {
     var verb = req.method,
-        // Usi
         url = parseUrl(req.url).pathname;
 
     // Because all of the routes are bound to the HTTP verb first, the array of acceptable routes
