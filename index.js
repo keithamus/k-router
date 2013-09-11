@@ -125,6 +125,10 @@ function route(path, controller, action, verb) {
         // If a method is already attached (and its not the one we're explicitly trying to set),
         // then don't add one, otherwise just go ahead and add one in.
         if (httpverb !== verb && (route.routes[httpverb] || {})[regexp.source]) continue;
+        if (httpverb === 'HEAD' && verb === 'GET') {
+            route(path, controller, action, 'HEAD');
+            continue;
+        }
         var routeObj = (route.routes[httpverb] || (route.routes[httpverb] = {}))[regexp.source] = {
             path: path,
             regexp: regexp,

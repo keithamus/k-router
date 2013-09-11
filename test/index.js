@@ -51,7 +51,8 @@ describe('Router', function () {
 
             view.respond = function (req, res) {
                 res.statusCode = 200;
-                res.end('');
+                res.setHeader('x-foo', 1);
+                res.end('foo');
             };
         });
 
@@ -63,6 +64,8 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -73,6 +76,8 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -83,6 +88,8 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z?v=1&x=2')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -101,6 +108,8 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -212,6 +221,8 @@ describe('Router', function () {
 
                 request(app).get('/x/Y/z')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -238,6 +249,8 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z/')
                     .expect(200)
+                    .expect('x-foo', '1')
+                    .expect('foo')
                     .end(next);
 
             });
@@ -393,6 +406,45 @@ describe('Router', function () {
                 });
 
                 request(app).get('/x/y/foo').end(next);
+
+            });
+
+        });
+
+        describe('special cases', function () {
+
+            describe('if request method is HEAD', function () {
+
+                it('will call the GET route', function (next) {
+
+                    router.route('/x/y/z', view, 'respond', 'GET');
+
+                    request(app).head('/x/y/z')
+                        .expect(200)
+                        .expect('x-foo', '1')
+                        .expect('')
+                        .end(next);
+
+                });
+
+                it('can be overriden', function (next) {
+
+                    view.getHead = function (req, res) {
+                        res.setHeader('x-foo', 'foo');
+                        res.setHeader('x-head-request', 'true');
+                        res.end('');
+                    };
+
+                    router.route('/x/y/z', view, 'respond', 'GET');
+                    router.route('/x/y/z', view, 'getHead', 'HEAD');
+
+                    request(app).head('/x/y/z')
+                        .expect(200)
+                        .expect('x-foo', 'foo')
+                        .expect('x-head-request', 'true')
+                        .end(next);
+
+                });
 
             });
 
