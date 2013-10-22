@@ -44,6 +44,61 @@ describe('Router', function () {
 
     });
 
+    describe('public helpers', function () {
+
+        describe('.getAllowedMethods', function () {
+            beforeEach(function () {
+                app.use(router({ app: app }));
+
+                view.show = function (req, res) {
+                    res.statusCode = 200;
+                    res.setHeader('x-foo', 2);
+                    res.end('bar');
+                };
+
+                router.route('/x/y/z', view, 'show', 'get');
+            });
+
+            it('returns an array of methods that have an explictly defined route', function () {
+
+                router.getAllowedMethods('/x/y/z')
+                    .should.deep.equal(['GET', 'HEAD']);
+
+            });
+
+            it('is calculated imperatively, allowing for additional routes at runtime', function () {
+
+                router.route('/x/y/z', view, 'destroy', 'DELETE');
+
+                router.getAllowedMethods('/x/y/z')
+                    .should.deep.equal(['GET', 'HEAD', 'DELETE']);
+
+            });
+
+            it('can be passed a RegExp route', function () {
+
+                router.getAllowedMethods(/^\/x\/y\/z\/?$/)
+                    .should.deep.equal(['GET', 'HEAD']);
+
+            });
+
+            it('can be passed a request object route', function () {
+
+                var req = {
+                    route: {
+                        regexp: /^\/x\/y\/z\/?$/
+                    }
+                };
+
+                router.getAllowedMethods(req)
+                    .should.deep.equal(['GET', 'HEAD']);
+
+            });
+
+        });
+
+    });
+
     describe('.route', function () {
 
         beforeEach(function () {

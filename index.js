@@ -56,12 +56,7 @@ var config = {
     errorHandler: function (req, res, next) {
         var verb = req.method,
             err = new Error('Method ' + verb + ' not defined on route');
-        err.allow = [];
-        for (var httpVerb in config.methods) {
-            if (route.routes[httpVerb][req.route.regexp.source].controller !== config) {
-                (err.allow || (err.allow = [])).push(httpVerb);
-            }
-        }
+        err.allow = getAllowedMethods(req);
         res.setHeader('Allow', err.allow.join(', '));
         res.statusCode = err.status = 405;
         return next(err);
@@ -102,6 +97,27 @@ function pathRegExp(path, keys) {
         .replace(/\*/g, '(.*)');
     // If "sensitive" is false then make the RegExp case insensitive (//i)
     return new RegExp('^' + path + '$', config.sensitive ? '' : 'i');
+}
+
+// getAllowedMethods is a way to get a list of methods for an allowed route, useful for setting the
+// `Allow` http header. The route (first argument) can be a String, RegExp or request object.
+function getAllowedMethods(path) {
+    // path is a RegExp
+    if (path instanceof RegExp) {
+        path = path.source;
+    // path is a request object (aka `req`)
+    } else if (path && path.route && path.route.regexp instanceof RegExp) {
+        path = path.route.regexp.source;
+    } else {
+        path = pathRegExp(path).source;
+    }
+    var allow = [];
+    for (var httpVerb in config.methods) {
+        if (route.routes[httpVerb][path] && route.routes[httpVerb][path].controller !== config) {
+            allow.push(httpVerb);
+        }
+    }
+    return allow;
 }
 
 // Routing
@@ -286,3 +302,4 @@ module.exports = function setupRoute(options) {
 module.exports.route = route;
 module.exports.resource = route.resource;
 module.exports.resources = route.resources;
+module.exports.getAllowedMethods = getAllowedMethods;
