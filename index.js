@@ -50,7 +50,7 @@ var config = {
         TRACE: true,
         OPTIONS: true,
         CONNECT: true,
-        PATCH: true
+        PATCH: true,
     },
     // errorHandlers
     errorHandler: function (req, res, next) {
@@ -294,7 +294,7 @@ module.exports = function setupRoute(options) {
     for (var key in options.urlResourceActions || {}) {
         config.resourceActions[key] = options.urlResourceActions[key] || config.resourceActions[key];
     }
-    route.routes = [];
+    route.routes = {};
     return dispatcher;
 };
 
