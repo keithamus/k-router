@@ -54,6 +54,12 @@ describe('Router', function () {
                 res.setHeader('x-foo', 1);
                 res.end('foo');
             };
+
+            view.show = function (req, res) {
+                res.statusCode = 200;
+                res.setHeader('x-foo', 2);
+                res.end('bar');
+            };
         });
 
         describe('basic routing', function () {
@@ -144,6 +150,18 @@ describe('Router', function () {
 
                 request(app).get('/x/y/z')
                     .expect(200)
+                    .end(next);
+
+            });
+
+            it('will default the HTTP verb to GET, and the action to `show` if both are omitted', function (next) {
+
+                router.route('/x/y/z', view);
+
+                request(app).get('/x/y/z')
+                    .expect(200)
+                    .expect('x-foo', '2')
+                    .expect('bar')
                     .end(next);
 
             });

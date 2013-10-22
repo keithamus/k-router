@@ -111,6 +111,10 @@ function pathRegExp(path, keys) {
 // Route allows you to bind a `path` to an `controller.action` against an HTTP `verb`, for example
 // `route('/user/:name', userController, 'show', 'GET');`
 function route(path, controller, action, verb) {
+    if (!action && !verb) {
+        action = 'show';
+        verb = 'GET';
+    }
     // Clean up the verb name. Throw if it doesn't exist
     verb = verb ? verb.toUpperCase() : 'GET';
     if (!config.methods[verb]) throw new Error('Invalid HTTP method: ' + verb);
