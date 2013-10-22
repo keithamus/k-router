@@ -1,6 +1,6 @@
 {
   "name": "k-router",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A MVC/MVT style router for Connect/Express apps",
   "homepage": "http://github.com/keithamus/k-router",
   "main": "index.js",
