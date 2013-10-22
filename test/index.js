@@ -97,6 +97,107 @@ describe('Router', function () {
 
         });
 
+        describe('.urlFor', function () {
+            beforeEach(function () {
+                app.use(router({ app: app }));
+
+                view = {
+                    name: 'myview',
+                    show: function () {},
+                    foo: function () {},
+                    bar: function () {},
+                    baz: function () {},
+                    bing: function () {}
+                };
+
+                router.route('/x/y/z', view, 'show', 'GET');
+                router.route('/x/y/:name/:age', view, 'foo', 'GET');
+                router.route('/a/b/:name/:other?', view, 'bing', 'GET');
+                router.route('/x/y/z/*', view, 'bar', 'GET');
+                router.route(/^\/(\w)\/(\w)\/(\w)\/?$/, view, 'baz', 'GET');
+            });
+
+            it('returns a string url pointing to the controller method', function () {
+
+                router.urlFor(view, 'show')
+                    .should.equal('/x/y/z');
+
+            });
+
+            it('returns a string url pointing to the controller method where first arg is view name', function () {
+
+                router.urlFor('myview', 'show')
+                    .should.equal('/x/y/z');
+
+            });
+
+            it('returns a string url that includes named arguments or parameters', function () {
+
+                router.urlFor(view, 'foo')
+                    .should.equal('/x/y/:name/:age');
+
+                router.urlFor(view, 'bar')
+                    .should.equal('/x/y/z/*');
+
+            });
+
+            it('returns a RegExp route as an interpolated string url', function () {
+
+                router.urlFor(view, 'baz')
+                    .should.equal('/:0/:1/:2/');
+
+            });
+
+            describe('with parameters', function () {
+
+                it('interpolates named parameters against the url', function () {
+
+                    router.urlFor(view, 'foo', { name: 'bob', age: '21' })
+                        .should.equal('/x/y/bob/21');
+
+                });
+
+                it('combines additional arguments to use in the url', function () {
+
+                    router.urlFor(view, 'foo', { name: 'bob' }, { age: '21' })
+                        .should.equal('/x/y/bob/21');
+
+                });
+
+                it('appends additional arguments to the wildcard', function () {
+
+                    router.urlFor(view, 'bar', 'foobarbaz', 'bing', 'bop')
+                        .should.equal('/x/y/z/foobarbaz/bing/bop');
+
+                });
+
+                it('appends a named wildcard element to the wildcard, overriding additional arguments', function () {
+
+                    router.urlFor(view, 'bar', 'foobarbaz', { '*': 'bob' })
+                        .should.equal('/x/y/z/bob');
+
+                });
+
+                it('interpolates RegExp urls to strings including argument combinations', function () {
+
+                    router.urlFor(view, 'baz', 'a', 'b', 'c')
+                        .should.equal('/a/b/c/');
+
+                    router.urlFor(view, 'baz', ['a', 'b'], 'c')
+                        .should.equal('/a/b/c/');
+
+                    router.urlFor(view, 'baz', 'a', ['b', 'c'])
+                        .should.equal('/a/b/c/');
+
+                });
+
+            });
+
+        });
+
+
+
+
     });
 
     describe('.route', function () {

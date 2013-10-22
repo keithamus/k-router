@@ -30,38 +30,39 @@
 
 // K-Router is a singleton, and has a global config. The config comes with a complete set of
 // sensible defaults, so no configuration needs to be used.
-var parseUrl = require('url').parse;
-var config = {
-    resourceActions: {
-        list: 'list',
-        new: 'new',
-        create: 'create',
-        show: 'show',
-        edit: 'edit',
-        update: 'update',
-        destroy: 'destroy',
-    },
-    methods: {
-        GET: true,
-        HEAD: true,
-        POST: true,
-        PUT: true,
-        DELETE: true,
-        TRACE: true,
-        OPTIONS: true,
-        CONNECT: true,
-        PATCH: true,
-    },
-    // errorHandlers
-    errorHandler: function (req, res, next) {
-        var verb = req.method,
-            err = new Error('Method ' + verb + ' not defined on route');
-        err.allow = getAllowedMethods(req);
-        res.setHeader('Allow', err.allow.join(', '));
-        res.statusCode = err.status = 405;
-        return next(err);
-    }
-};
+var parseUrl = require('url').parse,
+    namedArgRegExp = /(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?(\*)?/g,
+    config = {
+        resourceActions: {
+            list: 'list',
+            new: 'new',
+            create: 'create',
+            show: 'show',
+            edit: 'edit',
+            update: 'update',
+            destroy: 'destroy',
+        },
+        methods: {
+            GET: true,
+            HEAD: true,
+            POST: true,
+            PUT: true,
+            DELETE: true,
+            TRACE: true,
+            OPTIONS: true,
+            CONNECT: true,
+            PATCH: true,
+        },
+        // errorHandlers
+        errorHandler: function (req, res, next) {
+            var verb = req.method,
+                err = new Error('Method ' + verb + ' not defined on route');
+            err.allow = getAllowedMethods(req);
+            res.setHeader('Allow', err.allow.join(', '));
+            res.statusCode = err.status = 405;
+            return next(err);
+        }
+    };
 
 // Helpers
 // -------
@@ -80,7 +81,7 @@ function pathRegExp(path, keys) {
         // This is the core of named groups, fragments like `/:name` get converted to `/([^/]+?)`
         // and the key of "name" is recorded into `keys` so it can be loaded. It also has special
         // cases for extensions in urls (i.e "/whatever.:format") and wildcards like "/whatever/*"
-        .replace(/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?(\*)?/g, function (_, slash, format, key, capture, optional, star) {
+        .replace(namedArgRegExp, function (_, slash, format, key, capture, optional, star) {
             keys.push({ name: key, optional: !! optional });
             slash = slash || '';
             return '' +
@@ -120,6 +121,68 @@ function getAllowedMethods(path) {
     return allow;
 }
 
+// urlFor is a way to get pass in a controller and action name (and optional set of params) and get
+// a URL that will find its way to that controller's action. In essence, it's a route reverse lookup
+function urlFor(controller, action) {
+    var routeObj;
+    if (!controller || !action) throw new Error('Expects controller and action');
+
+    for (method in config.methods) {
+        for (routeObj in route.routes[method]) {
+            routeObj = route.routes[method][routeObj];
+            if ((routeObj.controller === controller || routeObj.controller.name === controller) && routeObj.action === action) {
+                return interpolateUrl(routeObj.path, Array.prototype.slice.call(arguments, 2));
+            }
+        }
+    }
+
+    return '';
+}
+
+function interpolateUrl(url, args) {
+    args = flattenArguments(args);
+    if (url instanceof RegExp) {
+        i = 0;
+        return url.source.replace(/^\^|\??\$$|(\\\/)|(\([^)]+\))/g, function (_, slash, group) {
+            var ret = '';
+            if (slash) {
+                ret = '/';
+            } else if (group) {
+                ret = args[i] ? args[i] : ':' + i;
+                i++;
+            }
+            return ret;
+        });
+    } else {
+        return url.replace(namedArgRegExp, function (part, slash, format, key, capture, optional, star) {
+            if (args[key]) {
+                return '/' + args[key];
+            }
+            if (!args[key] && optional) {
+                return '/';
+            }
+            return part;
+        }).replace(/\/\*/g, function () {
+            return '/' + (args['*'] ? args['*'] : (args.join('/') || '*'));
+        });
+    }
+}
+
+function flattenArguments(args) {
+    if (!args.length) return [];
+    args = args.reduce(function (sum, value, i) {
+        if (!(value instanceof Array) && value === Object(value)) {
+            for (name in value) {
+                sum[name] = value[name];
+            }
+        } else {
+            sum = sum.concat(value);
+        }
+        return sum;
+    }, []);
+    return args;
+}
+
 // Routing
 // -------
 
@@ -147,17 +210,17 @@ function route(path, controller, action, verb) {
         if (httpverb !== verb && (route.routes[httpverb] || {})[regexp.source]) continue;
         if (httpverb === 'HEAD' && verb === 'GET') {
             route(path, controller, action, 'HEAD');
-            continue;
+        } else {
+            var routeObj = (route.routes[httpverb] || (route.routes[httpverb] = {}))[regexp.source] = {
+                path: path,
+                regexp: regexp,
+                keys: keys
+            };
+            // Attach the controller & action to the HTTP verb supplied, but attach a 405 handler for
+            // any other verb.
+            routeObj.controller = httpverb === verb ? controller : config;
+            routeObj.action = httpverb === verb ? action : 'errorHandler';
         }
-        var routeObj = (route.routes[httpverb] || (route.routes[httpverb] = {}))[regexp.source] = {
-            path: path,
-            regexp: regexp,
-            keys: keys
-        };
-        // Attach the controller & action to the HTTP verb supplied, but attach a 405 handler for
-        // any other verb.
-        routeObj.controller = httpverb === verb ? controller : config;
-        routeObj.action = httpverb === verb ? action : 'errorHandler';
     }
     // Return the function so multiple routes can be chained like:
     // `route(/*...*/)(/*...*/)(/*...*/)(/*...*/)
@@ -303,3 +366,4 @@ module.exports.route = route;
 module.exports.resource = route.resource;
 module.exports.resources = route.resources;
 module.exports.getAllowedMethods = getAllowedMethods;
+module.exports.urlFor = urlFor;
