@@ -126,6 +126,62 @@ router.resources('/users', UsersViewClass)
       .resource('/public', PublicThingsViewClass);
 ```
 
+### Looking up routes with urlFor
+
+As a helper to allow you to decouple URLs from your app, the urlFor method
+exists, which takes a controller object and method name, and will return the
+route you assigned to that controller/method combination. It can also be passed
+arguments which will override the parameters from that url. For example:
+
+```javascript
+var UsersViewClass = require('./users.view.js'),
+    router    = require('k-router');
+
+router.route('/users', UsersViewClass, 'list', 'GET');
+router.route('/users/:id', UsersViewClass, 'show', 'GET');
+router.route('/users/by/:name/:age', UsersViewClass, 'findByNameAge', 'GET');
+
+router.urlFor(UsersViewClass, 'list') //=> '/users'
+router.urlFor(UsersViewClass, 'show') //=> '/users/:id'
+router.urlFor(UsersViewClass, 'show', { id: '12' }) //=> '/users/12'
+router.urlFor(UsersViewClass, 'findByNameAge') //=> '/users/:name/:age'
+router.urlFor(UsersViewClass, 'findByNameAge', { name: 'bob', age: 21 }) //=> '/users/bob/21'
+```
+
+You can also search for the view/controller class by name, if the view or
+controller class has a `name` propery in its object:
+
+```javascript
+var UsersViewClass = require('./users.view.js');
+
+UsersViewClass.name = 'Users';
+
+router.route('/users', UsersViewClass, 'list', 'GET');
+
+router.urlFor('Users', 'list') //=> '/users'
+```
+
+### Getting allowed methods for a route with getAllowedMethods
+
+Sometimes (typically in response to an OPTIONS request, or if returning a `405
+method not allowed`) you want to get a list of allowed methods on a particular
+route. You can do this with `router.getAllowedMethods(route)` where `route` is
+the String or RegExp you originally specified when creating the route, e.g:
+
+```javascript
+var UsersViewClass = require('./users.view.js'),
+    router    = require('k-router');
+
+router.route('/users', UsersViewClass, 'list', 'GET');
+
+// HEAD is transparently created as a route to the GET method, as per spec
+router.getAllowedMethods('/users') //=> ['GET', 'HEAD']
+
+router.route('/users', UsersViewClass, 'new', 'POST');
+
+router.getAllowedMethods('/users') //=> ['GET', 'HEAD', 'POST']
+```
+
 LICENSE
 -------
 
