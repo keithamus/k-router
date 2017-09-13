@@ -1,6 +1,8 @@
 K-Router
 ----------
 
+<a target='_blank' rel='nofollow' href='https://app.codesponsor.io/link/ygkcNhfZ9nTDeVM6P8LSGn1C/keithamus/k-router'>  <img alt='Sponsor' width='888' height='68' src='https://app.codesponsor.io/embed/ygkcNhfZ9nTDeVM6P8LSGn1C/keithamus/k-router.svg' /></a>
+
 K-Router is a simple Class based router Connect middleware. In other words, it
 ehances the default Connect router (`app.use('/url', fn)`) to do more advanced
 routing to methods on instance object by
